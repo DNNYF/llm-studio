@@ -48,6 +48,20 @@ function formatMessages(history: Message[], newMessage: string, systemPrompt?: s
     return messages;
 }
 
+async function fetchWithTimeout(resource: string, options: any = {}, timeout = 60000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        // @ts-ignore
+        const response = await fetch(resource, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (e) {
+        clearTimeout(id);
+        throw e;
+    }
+}
+
 export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
   const apiUrl = process.env.HEROKU_API_URL;
   if (!apiUrl) {
@@ -72,11 +86,11 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
   if (Array.isArray(config.stop) && config.stop.length > 0) requestBody.stop = config.stop;
 
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetchWithTimeout(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
-    });
+    }, 60000);
 
     // Logging status dan headers
     console.log("==[LLM CHAT API]==");
@@ -112,6 +126,9 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
 
   } catch (error: any) {
     console.error("Failed to fetch from Heroku API:", error);
+    if (error.name === 'AbortError') {
+      return "Error: Request timeout. Server is too slow or busy, please try again.";
+    }
     return `Error communicating with the AI service: ${error?.message || String(error)}`;
   }
 }
