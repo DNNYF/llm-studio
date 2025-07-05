@@ -49,11 +49,26 @@ function formatMessages(history: Message[], newMessage: string, systemPrompt?: s
     return messages;
 }
 
+// Fungsi fetch dengan timeout
+async function fetchWithTimeout(resource: string, options = {}, timeout = 30000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        // @ts-ignore
+        const response = await fetch(resource, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (e) {
+        clearTimeout(id);
+        throw e;
+    }
+}
+
 export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
   const apiUrl = process.env.HEROKU_API_URL;
 
   if (!apiUrl) {
-    throw new Error("HEROKU_API_URL is not defined in the environment variables.");
+    return "Error: HEROKU_API_URL is not defined in the environment variables.";
   }
   
   const config = await getActiveConfigForChat();
@@ -71,24 +86,28 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
     max_tokens: config?.max_tokens,
     temperature: config?.temperature,
     repeat_penalty: config?.repeat_penalty,
-    // Pastikan default stream: false agar tidak streaming jika tidak di-support
-    stream: false,
+    stream: false, // paksa non-stream agar response pasti JSON
   };
   if (typeof config.top_k === "number") requestBody.top_k = config.top_k;
   if (typeof config.top_p === "number") requestBody.top_p = config.top_p;
   if (Array.isArray(config.stop) && config.stop.length > 0) requestBody.stop = config.stop;
 
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetchWithTimeout(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
-    });
+    }, 30000);
 
     // Cek header content-type
     const contentType = response.headers.get("content-type") || "";
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API request failed with status ${response.status}: ${errText}`);
+    }
 
     // Kalau bukan JSON, kemungkinan streaming
     if (contentType.includes("application/json")) {
@@ -96,7 +115,7 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
       const resultText = data?.choices?.[0]?.message?.content;
       if (typeof resultText !== 'string') {
           console.error("Unexpected API response format:", data);
-          throw new Error("An unexpected response was received from the server.");
+          return "Error: An unexpected response was received from the server (no content).";
       }
       return resultText.trim();
     } else {
@@ -109,29 +128,26 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
         return line && line !== 'data: [DONE]';
       });
       if (!lastLine) {
-        throw new Error("No valid data chunk received from the server.");
+        return "Error: No valid data chunk received from the server.";
       }
-      // Potong "data: " lalu parse JSON
       lastLine = lastLine.replace(/^data: /, '').trim();
-      let parsed;
+      let parsed: any;
       try {
         parsed = JSON.parse(lastLine);
       } catch (e) {
         console.error("Failed to parse streamed JSON:", lastLine, e);
-        throw new Error(`Error communicating with the AI service: ${e instanceof Error ? e.message : String(e)}`);
+        return "Error communicating with the AI service (stream response parse error).";
       }
       const resultText = parsed?.choices?.[0]?.delta?.content || parsed?.choices?.[0]?.message?.content;
       if (typeof resultText !== 'string') {
         console.error("Unexpected streamed response format:", parsed);
-        throw new Error("An unexpected response was received from the server.");
+        return "Error: An unexpected response was received from the server (stream, no content).";
       }
       return resultText.trim();
     }
-  } catch(error) {
+  } catch(error: any) {
     console.error("Failed to fetch from Heroku API:", error);
-    if (error instanceof Error) {
-        return `Error communicating with the AI service: ${error.message}`;
-    }
-    return "An unknown error occurred while communicating with the AI service.";
+    // Kembalikan pesan error agar selalu muncul di UI, tidak silent
+    return `Error communicating with the AI service: ${error?.message || String(error)}`;
   }
 }
