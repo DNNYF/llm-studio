@@ -66,17 +66,17 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
 
   // SUSUN REQUEST SESUAI API YANG BENAR
   const requestBody: any = {
-    model: config.name || "gema-4b", // Default kalau tidak ada
+    model: config.name || "gema-4b",
     messages,
     max_tokens: config?.max_tokens,
     temperature: config?.temperature,
     repeat_penalty: config?.repeat_penalty,
+    // Pastikan default stream: false agar tidak streaming jika tidak di-support
+    stream: false,
   };
-  // Optional: tambahkan parameter lain jika perlu
   if (typeof config.top_k === "number") requestBody.top_k = config.top_k;
   if (typeof config.top_p === "number") requestBody.top_p = config.top_p;
   if (Array.isArray(config.stop) && config.stop.length > 0) requestBody.stop = config.stop;
-  if (typeof config.stream === "boolean") requestBody.stream = config.stream;
 
   try {
     const response = await fetch(apiUrl, {
@@ -87,24 +87,46 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
       body: JSON.stringify(requestBody),
     });
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        console.error("Heroku API Error:", errorBody);
-        throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
-    }
+    // Cek header content-type
+    const contentType = response.headers.get("content-type") || "";
 
-    const data = await response.json();
-
-    // Ambil jawaban dari data.choices[0].message.content (standar OpenAI)
-    const resultText = data?.choices?.[0]?.message?.content;
-
-    if (typeof resultText !== 'string') {
-        console.error("Unexpected API response format:", data);
+    // Kalau bukan JSON, kemungkinan streaming
+    if (contentType.includes("application/json")) {
+      const data = await response.json();
+      const resultText = data?.choices?.[0]?.message?.content;
+      if (typeof resultText !== 'string') {
+          console.error("Unexpected API response format:", data);
+          throw new Error("An unexpected response was received from the server.");
+      }
+      return resultText.trim();
+    } else {
+      // Streaming (event stream) mode
+      const text = await response.text();
+      // Cari baris "data: {...}"
+      const lines = text.split('\n').filter(line => line.startsWith('data: '));
+      // Cari baris terakhir sebelum "[DONE]"
+      let lastLine = lines.reverse().find(line => {
+        return line && line !== 'data: [DONE]';
+      });
+      if (!lastLine) {
+        throw new Error("No valid data chunk received from the server.");
+      }
+      // Potong "data: " lalu parse JSON
+      lastLine = lastLine.replace(/^data: /, '').trim();
+      let parsed;
+      try {
+        parsed = JSON.parse(lastLine);
+      } catch (e) {
+        console.error("Failed to parse streamed JSON:", lastLine, e);
+        throw new Error(`Error communicating with the AI service: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      const resultText = parsed?.choices?.[0]?.delta?.content || parsed?.choices?.[0]?.message?.content;
+      if (typeof resultText !== 'string') {
+        console.error("Unexpected streamed response format:", parsed);
         throw new Error("An unexpected response was received from the server.");
+      }
+      return resultText.trim();
     }
-    
-    return resultText.trim();
-
   } catch(error) {
     console.error("Failed to fetch from Heroku API:", error);
     if (error instanceof Error) {
