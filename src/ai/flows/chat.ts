@@ -1,16 +1,8 @@
 'use server';
-/**
- * @fileOverview A chat flow that responds to user messages via a Heroku API.
- *
- * - chat - A function that handles the chat process.
- * - ChatInput - The input type for the chat function.
- * - ChatOutput - The return type for the chat function.
- */
-import {z} from 'zod';
+import { z } from 'zod';
 import type { Message } from '@/types';
 import { db } from '@/lib/db';
 import { llmConfigSchema, type LlmConfig } from '@/lib/schemas';
-
 
 const ChatInputSchema = z.object({
   history: z.array(z.object({
@@ -44,14 +36,17 @@ async function getActiveConfigForChat(): Promise<LlmConfig | null> {
     }
 }
 
-function formatPrompt(history: Message[], newMessage: string, systemPrompt?: string): string {
-    let prompt = systemPrompt ? `${systemPrompt}\n\n` : "";
-    
-    if (history.length > 0) {
-        prompt += history.map(msg => `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`).join('\n') + '\n';
+// Ubah cara membuat list messages sesuai standar OpenAI
+function formatMessages(history: Message[], newMessage: string, systemPrompt?: string) {
+    const messages: {role: string, content: string}[] = [];
+    if (systemPrompt) {
+        messages.push({ role: "system", content: systemPrompt });
     }
-    prompt += `Human: ${newMessage}\nAssistant:`;
-    return prompt;
+    for (const msg of history) {
+        messages.push({ role: msg.role, content: msg.content });
+    }
+    messages.push({ role: "user", content: newMessage });
+    return messages;
 }
 
 export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
@@ -66,11 +61,11 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
       return "AI configuration is not available at the moment. Please contact an administrator.";
   }
   
-  // The system_prompt from the admin page is now passed into the main prompt.
-  const fullPrompt = formatPrompt(history, message, config?.system_prompt);
+  // Ganti prompt jadi messages (array)
+  const messages = formatMessages(history, message, config?.system_prompt);
 
   const requestBody = {
-    prompt: fullPrompt,
+    messages,
     max_tokens: config?.max_tokens,
     temperature: config?.temperature,
     top_k: config?.top_k,
@@ -96,7 +91,7 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
 
     const data = await response.json();
 
-    // Assuming the API returns a JSON object with a "completion" or "text" or "response" field
+    // Sesuaikan field hasil response jika perlu
     const resultText = data.completion || data.text || data.response;
 
     if (typeof resultText !== 'string') {
