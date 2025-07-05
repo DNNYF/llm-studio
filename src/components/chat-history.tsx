@@ -22,7 +22,6 @@ export function ChatHistory({
   onCreateNewChat,
   onDeleteConversation,
 }: ChatHistoryProps) {
-  // Track hovered item for marquee effect
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   return (
@@ -38,16 +37,14 @@ export function ChatHistory({
           {conversations.map((convo) => (
             <div
               key={convo.id}
-              className="group relative"
+              className="group relative flex items-center"
               onMouseEnter={() => setHoveredId(convo.id)}
               onMouseLeave={() => setHoveredId(null)}
             >
               <Button
                 variant={convo.id === activeConversationId ? "secondary" : "ghost"}
                 className={cn(
-                  "w-full justify-start h-10 pr-8 overflow-hidden rounded transition-all",
-                  // fix: ensure fixed width and hide overflow, no text overflow
-                  "max-w-[200px] min-w-0"
+                  "flex-1 justify-start h-10 pr-7 overflow-hidden rounded transition-all max-w-[200px] min-w-0"
                 )}
                 onClick={() => onSelectConversation(convo.id)}
               >
@@ -59,7 +56,6 @@ export function ChatHistory({
                       ? "animate-marquee"
                       : "truncate"
                   )}
-                  // Custom style for smooth marquee
                   style={
                     hoveredId === convo.id
                       ? {
@@ -74,7 +70,11 @@ export function ChatHistory({
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100"
+                tabIndex={-1}
+                className={cn(
+                  "ml-[-2.25rem] z-10 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity",
+                  "absolute right-2 top-1/2 -translate-y-1/2"
+                )}
                 onClick={(e) => {
                   e.stopPropagation();
                   onDeleteConversation(convo.id);
@@ -99,7 +99,6 @@ export function ChatHistory({
         }
         .animate-marquee {
           will-change: transform;
-          /* The min-width is for smoothness, you can adjust */
           min-width: 100%;
         }
       `}</style>
