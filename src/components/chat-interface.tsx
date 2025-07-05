@@ -9,10 +9,25 @@ import { Bot, Send, User, Loader2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types";
 
-// Tambahkan import react-markdown dan plugin markdown
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+
+/**
+ * Auto-fix AI generated list points.
+ * - Replace "1..", "2 ..", "3 ..", etc with "1.", "2.", dst untuk markdown list.
+ */
+function fixListPoints(text: string): string {
+  // Ganti 1.. atau 1 .. atau 1 . . jadi 1.
+  // Hanya di awal baris (atau setelah \n)
+  return text.replace(
+    /^(\s*)(\d+)\s*\.\.\s*/gm, // 1.. atau 1 .. di awal baris
+    "$1$2. "
+  ).replace(
+    /^(\s*)(\d+)\s*\.\s*\.\s*/gm, // 1 . . di awal baris
+    "$1$2. "
+  );
+}
 
 interface ChatInterfaceProps {
   messages: Message[];
@@ -70,24 +85,23 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
                       : "bg-card"
                   )}
                 >
-                  {/* Ganti ini: */}
-                  {/* <p className="text-sm leading-relaxed">{message.content}</p> */}
-
-                  {/* Jadi ini: */}
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     rehypePlugins={[rehypeRaw]}
                     linkTarget="_blank"
                     components={{
-                      // Optionally customize how certain HTML or markdown rendered
-                      // For example, force line breaks on single \n as well:
+                      img: () => null, // Disable rendering <img> tags
+                      br: () => <br />,
                       p: ({node, ...props}) => <p className="text-sm leading-relaxed" {...props} />,
                       li: ({node, ...props}) => <li className="ml-4 list-disc" {...props} />,
                     }}
                   >
-                    {message.content
-                      // Pastikan \n diganti jadi double space + \n biar markdown treat as <br>
-                      .replace(/\\n/g, '\n') // Kalau API kadang kirim literal "\n"
+                    {
+                      // 1. Normalisasi \n
+                      // 2. Fix point list AI (ganti 1.. jadi 1.)
+                      fixListPoints(
+                        message.content.replace(/\\n/g, '\n')
+                      )
                     }
                   </ReactMarkdown>
                 </div>
