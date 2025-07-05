@@ -45,9 +45,9 @@ export default function ChatPage() {
         const savedHistory = JSON.parse(savedHistoryRaw);
         if (savedHistory.conversations && Array.isArray(savedHistory.conversations) && savedHistory.conversations.length > 0) {
           setConversations(savedHistory.conversations);
-          
+
           const activeIdIsValid = savedHistory.conversations.some((c: Conversation) => c.id === savedHistory.activeConversationId);
-          
+
           if (activeIdIsValid) {
             setActiveConversationId(savedHistory.activeConversationId);
           } else {
@@ -104,6 +104,15 @@ export default function ChatPage() {
     setShowClearAllDialog(false);
   };
 
+  const makeChatTitle = (userMsg: string, aiMsg?: string) => {
+    // Ambil 40 karakter pertama dari userMsg, atau jika ada aiMsg bisa diutamakan.
+    if (aiMsg && aiMsg.trim()) {
+      // Ambil kalimat pertama jawaban AI (atau 40 char)
+      const firstLine = aiMsg.split(/[\n.?!]/)[0].trim();
+      return firstLine.length > 0 ? firstLine.slice(0, 40) : aiMsg.slice(0, 40);
+    }
+    return userMsg.slice(0, 40) + (userMsg.length > 40 ? "..." : "");
+  };
 
   const handleSendMessage = async (messageContent: string) => {
     let currentConversationId = activeConversationId;
@@ -111,53 +120,60 @@ export default function ChatPage() {
     let currentConversationMessages: Message[] = [];
 
     const userMessage: Message = { role: 'user', content: messageContent };
-    
+
     setIsLoading(true);
 
     if (!currentConversationId) {
-        const newId = uuidv4();
-        const newConversation: Conversation = {
-            id: newId,
-            title: messageContent.substring(0, 30) + (messageContent.length > 30 ? '...' : ''),
-            messages: [userMessage],
-        };
-        setConversations(prev => [newConversation, ...prev]);
-        setActiveConversationId(newId);
-        currentConversationId = newId;
-        newConversationCreated = true;
-        currentConversationMessages = [userMessage];
+      // Buat chat baru jika belum ada
+      const newId = uuidv4();
+      const newConversation: Conversation = {
+        id: newId,
+        title: "New Chat",
+        messages: [userMessage],
+      };
+      setConversations(prev => [newConversation, ...prev]);
+      setActiveConversationId(newId);
+      currentConversationId = newId;
+      newConversationCreated = true;
+      currentConversationMessages = [userMessage];
     } else {
-        setConversations(prev =>
-            prev.map(c => {
-                if (c.id === currentConversationId) {
-                    const updatedMessages = [...c.messages, userMessage];
-                    currentConversationMessages = updatedMessages;
-                    return { ...c, messages: updatedMessages };
-                }
-                return c;
-            })
-        );
+      setConversations(prev =>
+        prev.map(c => {
+          if (c.id === currentConversationId) {
+            const updatedMessages = [...c.messages, userMessage];
+            currentConversationMessages = updatedMessages;
+            return { ...c, messages: updatedMessages };
+          }
+          return c;
+        })
+      );
     }
 
     try {
       // For the AI call, we need the history *before* the new user message was added.
-      const historyForAI = newConversationCreated 
+      const historyForAI = newConversationCreated
         ? []
         : currentConversationMessages.slice(0, -1);
-      
+
       const response = await chat({
         history: historyForAI,
         message: messageContent,
       });
 
       const assistantMessage: Message = { role: 'assistant', content: response };
-      
+
       setConversations(prev =>
-        prev.map(c =>
-          c.id === currentConversationId
-            ? { ...c, messages: [...c.messages, assistantMessage] }
-            : c
-        )
+        prev.map(c => {
+          if (c.id === currentConversationId) {
+            let newTitle = c.title;
+            // Jika judul masih "New Chat", update dengan isi pertanyaan user atau jawaban AI
+            if (c.title === "New Chat") {
+              newTitle = makeChatTitle(messageContent, response);
+            }
+            return { ...c, title: newTitle, messages: [...c.messages, assistantMessage] };
+          }
+          return c;
+        })
       );
     } catch (error) {
       console.error('Error calling chat flow:', error);
