@@ -64,16 +64,20 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
   // Ganti prompt jadi messages (array)
   const messages = formatMessages(history, message, config?.system_prompt);
 
-  const requestBody = {
+  // SUSUN REQUEST SESUAI API YANG BENAR
+  const requestBody: any = {
+    model: config.name || "gema-4b", // Default kalau tidak ada
     messages,
     max_tokens: config?.max_tokens,
     temperature: config?.temperature,
-    top_k: config?.top_k,
-    top_p: config?.top_p,
     repeat_penalty: config?.repeat_penalty,
-    stop: config?.stop,
   };
-  
+  // Optional: tambahkan parameter lain jika perlu
+  if (typeof config.top_k === "number") requestBody.top_k = config.top_k;
+  if (typeof config.top_p === "number") requestBody.top_p = config.top_p;
+  if (Array.isArray(config.stop) && config.stop.length > 0) requestBody.stop = config.stop;
+  if (typeof config.stream === "boolean") requestBody.stream = config.stream;
+
   try {
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -91,15 +95,15 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
 
     const data = await response.json();
 
-    // Sesuaikan field hasil response jika perlu
-    const resultText = data.completion || data.text || data.response;
+    // Ambil jawaban dari data.choices[0].message.content (standar OpenAI)
+    const resultText = data?.choices?.[0]?.message?.content;
 
     if (typeof resultText !== 'string') {
         console.error("Unexpected API response format:", data);
-        throw new Error("Received an unexpected format from the API.");
+        throw new Error("An unexpected response was received from the server.");
     }
     
-    return resultText;
+    return resultText.trim();
 
   } catch(error) {
     console.error("Failed to fetch from Heroku API:", error);
