@@ -9,6 +9,11 @@ import { Bot, Send, User, Loader2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types";
 
+// Tambahkan import react-markdown dan plugin markdown
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+
 interface ChatInterfaceProps {
   messages: Message[];
   onSendMessage: (message: string) => Promise<void>;
@@ -65,7 +70,26 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
                       : "bg-card"
                   )}
                 >
-                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  {/* Ganti ini: */}
+                  {/* <p className="text-sm leading-relaxed">{message.content}</p> */}
+
+                  {/* Jadi ini: */}
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
+                    linkTarget="_blank"
+                    components={{
+                      // Optionally customize how certain HTML or markdown rendered
+                      // For example, force line breaks on single \n as well:
+                      p: ({node, ...props}) => <p className="text-sm leading-relaxed" {...props} />,
+                      li: ({node, ...props}) => <li className="ml-4 list-disc" {...props} />,
+                    }}
+                  >
+                    {message.content
+                      // Pastikan \n diganti jadi double space + \n biar markdown treat as <br>
+                      .replace(/\\n/g, '\n') // Kalau API kadang kirim literal "\n"
+                    }
+                  </ReactMarkdown>
                 </div>
               </div>
             ))}
