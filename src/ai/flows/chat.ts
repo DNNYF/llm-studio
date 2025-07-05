@@ -78,12 +78,30 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
       body: JSON.stringify(requestBody),
     });
 
+    // Logging status dan headers
+    console.log("==[LLM CHAT API]==");
+    console.log("URL:", apiUrl);
+    console.log("Request Body:", JSON.stringify(requestBody));
+    console.log("Response status:", response.status);
+    console.log("Response headers:", JSON.stringify([...response.headers]));
+
+    // Baca response mentah sebagai string supaya bisa dilihat isinya
+    const rawText = await response.text();
+    console.log("Raw response from API:", rawText);
+
     if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`API request failed with status ${response.status}: ${errText}`);
+      throw new Error(`API request failed with status ${response.status}: ${rawText}`);
     }
 
-    const data = await response.json();
+    // Parsing JSON dari response mentah
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (e) {
+      console.error("Error parsing JSON response:", e);
+      return "Error: Failed to parse API response as JSON. Silakan cek log server untuk detail.";
+    }
+
     // Ambil response dari choices[0].message.content
     const resultText = data?.choices?.[0]?.message?.content;
     if (typeof resultText !== 'string') {
