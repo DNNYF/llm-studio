@@ -1,9 +1,9 @@
-
 'use server';
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/db';
+import bcrypt from 'bcryptjs';
 
 export async function login(formData: FormData) {
   const email = formData.get('email') as string;
@@ -14,7 +14,6 @@ export async function login(formData: FormData) {
   }
 
   try {
-    // Note: The database table is assumed to be 'users' and the email is stored in the 'username' column.
     const query = 'SELECT * FROM users WHERE username = $1';
     const { rows } = await db.query(query, [email]);
     
@@ -24,9 +23,8 @@ export async function login(formData: FormData) {
 
     const user = rows[0];
 
-    // In a real application, you should always hash passwords before storing and comparing them.
-    // This is a simple plaintext comparison because the database schema provided stores plaintext.
-    const isPasswordValid = user.password === password;
+    // Pakai bcrypt compare
+    const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (isPasswordValid) {
       const sessionToken = 'authenticated'; 
@@ -34,7 +32,7 @@ export async function login(formData: FormData) {
       cookies().set('session', sessionToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 24 * 7, // 1 week
+        maxAge: 60 * 60 * 24 , // 1 day
         path: '/',
       });
 
