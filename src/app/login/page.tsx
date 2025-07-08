@@ -1,7 +1,7 @@
-
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation'; 
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -19,6 +19,7 @@ import { AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter(); 
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -27,6 +28,8 @@ export default function LoginPage() {
     const result = await login(formData);
     if (result?.error) {
       setError(result.error);
+    } else {
+      router.push('/admin');
     }
   };
 
