@@ -48,7 +48,7 @@ function formatMessages(history: Message[], newMessage: string, systemPrompt?: s
     return messages;
 }
 
-async function fetchWithTimeout(resource: string, options: any = {}, timeout = 120000) { // timeout 2 Menit
+async function fetchWithTimeout(resource: string, options: any = {}, timeout = 120000) { // 2 menit
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
