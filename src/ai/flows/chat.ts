@@ -85,6 +85,9 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
   if (typeof config.top_p === "number") requestBody.top_p = config.top_p;
   if (Array.isArray(config.stop) && config.stop.length > 0) requestBody.stop = config.stop;
 
+  // Menambahkan pengecekan stream
+  if (typeof config.stream === "boolean") requestBody.stream = config.stream;
+
   try {
     const response = await fetchWithTimeout(apiUrl, {
       method: 'POST',
