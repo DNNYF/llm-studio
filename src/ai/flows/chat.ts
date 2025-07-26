@@ -62,6 +62,7 @@ async function fetchWithTimeout(resource: string, options: any = {}, timeout = 1
     }
 }
 
+// Streaming-aware version: can parse OpenAI-compatible event stream responses
 export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
   const apiUrl = process.env.HEROKU_API_URL;
   if (!apiUrl) {
@@ -84,9 +85,7 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
   if (typeof config.top_k === "number") requestBody.top_k = config.top_k;
   if (typeof config.top_p === "number") requestBody.top_p = config.top_p;
   if (Array.isArray(config.stop) && config.stop.length > 0) requestBody.stop = config.stop;
-
-  // Menambahkan pengecekan stream
-  if (typeof config.stream === "boolean") requestBody.stream = config.stream;
+  if (typeof config.stream === "boolean") requestBody.stream = config.stream; // Gunakan flag stream dari DB
 
   try {
     const response = await fetchWithTimeout(apiUrl, {
@@ -102,7 +101,40 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
     console.log("Response status:", response.status);
     console.log("Response headers:", JSON.stringify([...response.headers]));
 
-    // Baca response mentah sebagai string supaya bisa dilihat isinya
+    // Jika streaming: parse event stream per chunk
+    const contentType = response.headers.get('content-type') || '';
+    const isStream = contentType.includes('text/event-stream');
+    if (isStream && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let result = '';
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.trim().startsWith('data: ')) {
+            const data = line.trim().slice(6);
+            if (data === '[DONE]') continue;
+            try {
+              const json = JSON.parse(data);
+              const delta = json.choices?.[0]?.delta?.content || '';
+              result += delta;
+            } catch (err) {
+              // ignore parse errors
+            }
+          }
+        }
+      }
+      return result.trim();
+    }
+
+    // Non-streaming fallback (response.text() sebagai JSON)
     const rawText = await response.text();
     console.log("Raw response from API:", rawText);
 
@@ -110,7 +142,6 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
       throw new Error(`API request failed with status ${response.status}: ${rawText}`);
     }
 
-    // Parsing JSON dari response mentah
     let data;
     try {
       data = JSON.parse(rawText);
@@ -119,7 +150,6 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
       return "Error: Failed to parse API response as JSON. Silakan cek log server untuk detail.";
     }
 
-    // Ambil response dari choices[0].message.content
     const resultText = data?.choices?.[0]?.message?.content;
     if (typeof resultText !== 'string') {
       console.error("Unexpected API response format:", data);
