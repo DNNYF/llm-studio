@@ -48,7 +48,7 @@ function formatMessages(history: Message[], newMessage: string, systemPrompt?: s
     return messages;
 }
 
-async function fetchWithTimeout(resource: string, options: any = {}, timeout = 60000) {
+async function fetchWithTimeout(resource: string, options: any = {}, timeout = 120000) { // timeout 2 Menit
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
@@ -90,7 +90,7 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
-    }, 60000);
+    }, 120000); // 2 menit timeout
 
     // Logging status dan headers
     console.log("==[LLM CHAT API]==");
