@@ -15,6 +15,7 @@ import {
 import { chat } from "@/ai/flows/chat";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHistory } from "@/components/chat-history";
+import { ChatHeader } from "@/components/chat-header";
 import type { Conversation, Message } from "@/types";
 import {
   AlertDialog,
@@ -194,9 +195,9 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="bg-background">
-      <SidebarProvider>
-        <Sidebar>
+    <div className="h-dvh bg-background">
+      <SidebarProvider defaultOpen={false}>
+        <Sidebar className="border-r">
           <SidebarHeader>
             <div className="flex items-center justify-between p-2 pt-4">
               <h2 className="px-2 text-lg font-semibold tracking-tight">Chat History</h2>
@@ -220,15 +221,11 @@ export default function ChatPage() {
             </div>
           </SidebarFooter>
         </Sidebar>
-        <SidebarInset>
-          <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6">
-            <SidebarTrigger />
-            <div className="flex-1">
-              <h1 className="text-lg font-semibold md:text-xl truncate">
-                {activeConversation?.title || "Chat"}
-              </h1>
-            </div>
-          </header>
+        <SidebarInset className="flex flex-col">
+          <ChatHeader 
+            title={activeConversation?.title || "Chat"}
+            onNewChat={handleCreateNewChat}
+          />
           <main className="flex-1 overflow-hidden">
             <ChatInterface
               messages={activeConversation?.messages || []}
