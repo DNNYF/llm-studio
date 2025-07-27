@@ -76,7 +76,7 @@ export async function chat({history, message}: ChatInput): Promise<ChatOutput> {
   const messages = formatMessages(history, message, config?.system_prompt);
 
   const requestBody: any = {
-    model: config.name || "Dnfs/Mangga-1-4B",
+    model: "Dnfs/Mangga-1-4B",
     messages,
     max_tokens: config?.max_tokens,
     temperature: config?.temperature,
